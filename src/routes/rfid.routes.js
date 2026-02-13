@@ -11,6 +11,7 @@ const {
   deleteStudent,
   recordViolation,
   getStudentViolations,
+  generateReport,
 } = require("../controllers/rfid.controller");
 
 // RFID tap endpoint
@@ -25,5 +26,8 @@ router.put("/update_students/:id", updateStudent);
 router.delete("/delete_student/:id", deleteStudent);
 router.post("/record_violation", recordViolation);
 router.get("/student_violations/:student_id", getStudentViolations);
+
+// Generate reports
+router.get("/generate-report/:yearMonth", generateReport);
 
 module.exports = router;

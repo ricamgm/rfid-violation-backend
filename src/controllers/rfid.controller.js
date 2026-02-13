@@ -1,4 +1,3 @@
-
 let students = [];
 
 let violations = [];
@@ -80,26 +79,20 @@ exports.getStudentById = (req, res) => {
 // Get student by RFID
 exports.getStudentByRfid = (req, res) => {
   const { rfid } = req.params;
-  console.log("Looking up RFID:", rfid);
-
   const student = students.find((s) => s.rfid_uid === rfid);
   if (!student) {
-    console.log("RFID not found:", rfid);
     return res.status(404).json({
       status: "error",
       message: "Student not found",
     });
   }
 
-  console.log("Found student:", student);
   res.json(student);
 };
 
 // Create new student
 exports.createStudent = (req, res) => {
   const { name, student_id, grade, section, rfid_uid } = req.body;
-  console.log("Received data:", { name, student_id, grade, section, rfid_uid });
-
   if (!name || !student_id || !grade || !section || !rfid_uid) {
     return res.status(400).json({
       status: "error",
@@ -134,7 +127,6 @@ exports.createStudent = (req, res) => {
   };
 
   students.push(newStudent);
-  console.log("New student created:", newStudent);
   res.status(201).json(newStudent);
 };
 
@@ -196,6 +188,122 @@ exports.deleteStudent = (req, res) => {
 
   students.splice(studentIndex, 1);
   res.status(204).send();
+};
+
+const XLSX = require("xlsx");
+
+// Generate Excel report for violations
+exports.generateReport = (req, res) => {
+  try {
+    const { yearMonth } = req.params;
+    const { type = "summary" } = req.query;
+
+    // Parse year and month from yearMonth (format: YYYY-MM)
+    const [year, month] = yearMonth.split("-").map(Number);
+
+    // Filter violations for the specified month and year
+    const monthViolations = violations.filter((violation) => {
+      const violationDate = new Date(violation.timestamp);
+      return (
+        violationDate.getFullYear() === year &&
+        violationDate.getMonth() + 1 === month
+      );
+    });
+
+    // Group violations by student
+    const violationsByStudent = {};
+    monthViolations.forEach((violation) => {
+      if (!violationsByStudent[violation.student_id]) {
+        const student =
+          students.find((s) => s.student_id === violation.student_id) || {};
+        violationsByStudent[violation.student_id] = {
+          student_id: violation.student_id,
+          name: student.name || "Unknown",
+          grade: student.grade || "N/A",
+          section: student.section || "N/A",
+          violations: [],
+          totalViolations: 0,
+        };
+      }
+      violationsByStudent[violation.student_id].violations.push(violation);
+      violationsByStudent[violation.student_id].totalViolations++;
+    });
+
+    let worksheet, workbook;
+
+    if (type === "detailed") {
+      // Detailed report - one row per violation
+      const detailedData = [];
+
+      Object.values(violationsByStudent).forEach((studentData) => {
+        studentData.violations.forEach((violation, index) => {
+          detailedData.push({
+            "Student ID": studentData.student_id,
+            Name: studentData.name,
+            Grade: studentData.grade,
+            Section: studentData.section,
+            "Violation #": index + 1,
+            Type: violation.type,
+            Description: violation.description || "N/A",
+            Date: new Date(violation.timestamp).toLocaleString(),
+            Status: violation.status || "Recorded",
+          });
+        });
+      });
+
+      worksheet = XLSX.utils.json_to_sheet(detailedData);
+    } else {
+      // Summary report - one row per student with violation count
+      const summaryData = Object.values(violationsByStudent).map((student) => ({
+        "Student ID": student.student_id,
+        Name: student.name,
+        Grade: student.grade,
+        Section: student.section,
+        "Total Violations": student.totalViolations,
+        "Types of Violations": [
+          ...new Set(student.violations.map((v) => v.type)),
+        ].join(", "),
+      }));
+
+      worksheet = XLSX.utils.json_to_sheet(
+        summaryData.length > 0 ? summaryData : [{}],
+      );
+    }
+
+    // Create workbook and worksheet
+    workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(
+      workbook,
+      worksheet,
+      type === "detailed" ? "Violation Details" : "Summary",
+    );
+
+    // Generate Excel file
+    const excelBuffer = XLSX.write(workbook, {
+      bookType: "xlsx",
+      type: "buffer",
+    });
+
+    // Set headers for file download
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=violation_report_${yearMonth}.xlsx`,
+    );
+
+    // Send the Excel file
+    return res.send(excelBuffer);
+  } catch (error) {
+    console.error("Error generating report:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to generate report",
+      error: error.message,
+    });
+  }
 };
 
 // Handle RFID tap
