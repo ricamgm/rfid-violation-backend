@@ -1,4 +1,13 @@
-let students = [];
+let students = [
+  {
+    id: 1,
+    rfid_uid: "1260249314",
+    student_id: "2026001",
+    name: "Calista Manayon",
+    grade: "12",
+    section: "Angel",
+  },
+];
 
 let violations = [];
 
@@ -31,7 +40,7 @@ exports.recordViolation = (req, res) => {
     type: violation.type || "Other",
     description: violation.description || "",
     timestamp,
-    status: "pending", // Can be 'pending', 'resolved', etc.
+    status: "RECORDED", // Can be 'pending', 'resolved', etc.
   }));
 
   violations.push(...newViolations);
@@ -242,11 +251,10 @@ exports.generateReport = (req, res) => {
             Name: studentData.name,
             Grade: studentData.grade,
             Section: studentData.section,
-            "Violation #": index + 1,
-            Type: violation.type,
+            "Violation Type": violation.type,
             Description: violation.description || "N/A",
             Date: new Date(violation.timestamp).toLocaleString(),
-            Status: violation.status || "Recorded",
+            Status: violation.status,
           });
         });
       });
