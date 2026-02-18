@@ -1,12 +1,4 @@
 let students = [
-  {
-    id: 1,
-    rfid_uid: "1260249314",
-    student_id: "2026001",
-    name: "Calista Manayon",
-    grade: "12",
-    section: "Angel",
-  },
 ];
 
 let violations = [];
